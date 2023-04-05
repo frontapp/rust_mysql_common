@@ -369,6 +369,14 @@ impl PacketCodec {
         self.inner.sync_seq_id();
     }
 
+    pub fn front_hack_get_seq_id(&self) -> u8 {
+        self.inner.get_seq_id()
+    }
+
+    pub fn front_hack_set_seq_id(&mut self, id: u8) {
+        self.inner.set_seq_id(id)
+    }
+
     /// Turns compression on.
     pub fn compress(&mut self, level: Compression) {
         self.inner.compress(level);
@@ -430,6 +438,20 @@ impl PacketCodecInner {
         match self {
             PacketCodecInner::Plain(_) => (),
             PacketCodecInner::Comp(c) => c.sync_seq_id(),
+        }
+    }
+
+    fn get_seq_id(&self) -> u8 {
+        match self {
+            PacketCodecInner::Plain(c) => c.seq_id,
+            PacketCodecInner::Comp(c) => c.comp_seq_id,
+        }
+    }
+
+    fn set_seq_id(&mut self, id: u8) {
+        match self {
+            PacketCodecInner::Plain(c) => c.seq_id = id,
+            PacketCodecInner::Comp(c) => c.comp_seq_id = id,
         }
     }
 
