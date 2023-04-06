@@ -369,6 +369,14 @@ impl PacketCodec {
         self.inner.sync_seq_id();
     }
 
+    pub fn save_state(&self) -> PacketCodecState {
+        self.inner.save_state()
+    }
+
+    pub fn restore_state(&mut self, state: PacketCodecState) {
+        self.inner.restore_state(state)
+    }
+
     /// Turns compression on.
     pub fn compress(&mut self, level: Compression) {
         self.inner.compress(level);
@@ -407,6 +415,12 @@ impl Default for PacketCodec {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum PacketCodecState {
+    Plain(u8),
+    Comp(u8),
+}
+
 /// Packet codec implementation.
 #[derive(Debug)]
 enum PacketCodecInner {
@@ -430,6 +444,35 @@ impl PacketCodecInner {
         match self {
             PacketCodecInner::Plain(_) => (),
             PacketCodecInner::Comp(c) => c.sync_seq_id(),
+        }
+    }
+
+    fn is_at_packet_boundary(&self) -> bool {
+        match self {
+            PacketCodecInner::Plain(c) => c.chunk_decoder == ChunkDecoder::Idle,
+            PacketCodecInner::Comp(c) => {
+                c.in_buf.is_empty()
+                    && c.out_buf.is_empty()
+                    && c.comp_decoder == CompDecoder::Idle
+                    && c.plain_codec.chunk_decoder == ChunkDecoder::Idle
+            }
+        }
+    }
+
+    fn save_state(&self) -> PacketCodecState {
+        assert!(self.is_at_packet_boundary());
+        match self {
+            PacketCodecInner::Plain(c) => PacketCodecState::Plain(c.seq_id),
+            PacketCodecInner::Comp(c) => PacketCodecState::Comp(c.comp_seq_id),
+        }
+    }
+
+    fn restore_state(&mut self, state: PacketCodecState) {
+        assert!(self.is_at_packet_boundary());
+        match (self, state) {
+            (PacketCodecInner::Plain(c), PacketCodecState::Plain(id)) => c.seq_id = id,
+            (PacketCodecInner::Comp(c), PacketCodecState::Comp(id)) => c.comp_seq_id = id,
+            _ => panic!("Invalid codec state type"),
         }
     }
 
